@@ -1,49 +1,46 @@
 package mycelia
 
 import (
-	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
-	"slices"
 	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/signal-weave/rhizome"
 )
 
 const (
-	OBJ_MESSAGE     uint8 = 1
-	OBJ_TRANSFORMER uint8 = 2
-	OBJ_SUBSCRIBER  uint8 = 3
-	OBJ_CHANNEL     uint8 = 4
+	ObjMessage     uint8 = 1
+	ObjTransformer uint8 = 2
+	ObjSubscriber  uint8 = 3
+	ObjChannel     uint8 = 4
 
-	OBJ_GLOBALS uint8 = 20
+	ObjGlobals uint8 = 20
 
-	OBJ_ACTION uint8 = 50
+	ObjAction uint8 = 50
 )
 
 const (
-	_CMD_UNKNOWN uint8 = 0
+	CmdUnknown uint8 = 0
 
-	CMD_SEND   uint8 = 1
-	CMD_ADD    uint8 = 2
-	CMD_REMOVE uint8 = 3
+	CmdSend   uint8 = 1
+	CmdAdd    uint8 = 2
+	CmdRemove uint8 = 3
 
-	CMD_UPDATE uint8 = 20
+	CmdUpdate uint8 = 20
 
-	CMD_SIGTERM uint8 = 50
+	CmdSigterm uint8 = 50
 )
 
 const (
-	API_PROTOCOL_VER uint8  = 1
-	encodingName            = "utf-8"
-	maxU16Len        uint32 = 65535
+	ApiProtocolVer uint8  = 1
+	maxU16Len      uint32 = 65535
 )
 
-// DEAD_LETTER is used for subscribing to dead letter channels.
-const DEAD_LETTER = "deadLetter"
+// DeadLetter is used for subscribing to dead letter channels.
+const DeadLetter = "deadLetter"
 
 // -------Public message types--------------------------------------------------
 
@@ -54,65 +51,66 @@ type Command interface {
 
 // Message sends a payload over a route.
 type Message struct {
-	AckPolicy ACK_PLCY
+	AckPolicy AckPlcy
 	Route     string
 	Payload   []byte
-	// Optional: override, defaults to CMD_SEND if zero.
+	Encoding  PayloadEncoding
+	// Optional: override, defaults to CmdSend if zero.
 	CmdType uint8
 }
 
 func (m Message) CmdValid() bool {
 	c := m.EffectiveCmd()
-	return c == CMD_SEND
+	return c == CmdSend
 }
 
 func (m Message) EffectiveCmd() uint8 {
-	if m.CmdType != _CMD_UNKNOWN {
+	if m.CmdType != CmdUnknown {
 		return m.CmdType
 	}
-	return CMD_SEND
+	return CmdSend
 }
 
 // Transformer registers/unregisters a transformer at a channel.
 type Transformer struct {
-	AckPolicy ACK_PLCY
+	AckPolicy AckPlcy
 	Route     string
 	Channel   string
 	Address   string
-	// Optional: override, defaults to CMD_ADD if zero.
+	// Optional: override, defaults to CmdAdd if zero.
 	CmdType uint8
 }
 
 func (t Transformer) CmdValid() bool {
 	c := t.EffectiveCmd()
-	return c == CMD_ADD || c == CMD_REMOVE
+	return c == CmdAdd || c == CmdRemove
 }
 func (t Transformer) EffectiveCmd() uint8 {
-	if t.CmdType != _CMD_UNKNOWN {
+	if t.CmdType != CmdUnknown {
 		return t.CmdType
 	}
-	return CMD_ADD
+	return CmdAdd
 }
 
 // Subscriber registers/unregisters a subscriber at a channel.
 type Subscriber struct {
-	AckPolicy ACK_PLCY
+	AckPolicy AckPlcy
 	Route     string
 	Channel   string
 	Address   string
-	// Optional: override, defaults to CMD_ADD if zero.
+	// Optional: override, defaults to CmdAdd if zero.
 	CmdType uint8
 }
 
 func (s Subscriber) CmdValid() bool {
 	c := s.EffectiveCmd()
-	return c == CMD_ADD || c == CMD_REMOVE
+	return c == CmdAdd || c == CmdRemove
 }
 func (s Subscriber) EffectiveCmd() uint8 {
-	if s.CmdType != _CMD_UNKNOWN {
+	if s.CmdType != CmdUnknown {
 		return s.CmdType
 	}
-	return CMD_ADD
+	return CmdAdd
 }
 
 type GlobalValues struct {
@@ -127,170 +125,114 @@ type GlobalValues struct {
 
 // Globals updates broker globals.
 type Globals struct {
-	AckPolicy ACK_PLCY
+	AckPolicy AckPlcy
 	Values    GlobalValues
-	// Optional: override, defaults to CMD_UPDATE if zero.
+	// Optional: override, defaults to CmdUpdate if zero.
 	CmdType uint8
 }
 
 func (g Globals) CmdValid() bool {
 	c := g.EffectiveCmd()
-	return c == CMD_UPDATE
+	return c == CmdUpdate
 }
 
 func (g Globals) EffectiveCmd() uint8 {
-	if g.CmdType != _CMD_UNKNOWN {
+	if g.CmdType != CmdUnknown {
 		return g.CmdType
 	}
-	return CMD_UPDATE
+	return CmdUpdate
 }
 
 type Channel struct {
-	AckPolicy ACK_PLCY
+	AckPolicy AckPlcy
 	Route     string
 	Name      string
-	// Optional: override, defaults to SEL_STRAT_PUBSUB if zero.
-	SelectionStrategy SEL_STRAT
-	// Optional: override, defaults to CMD_ADD if zero.
+	// Optional: override, defaults to SelectionStratPubsub if zero.
+	SelectionStrategy SelectionStrat
+	// Optional: override, defaults to CmdAdd if zero.
 	CmdType uint8
 }
 
 func (c Channel) CmdValid() bool {
 	cmd := c.EffectiveCmd()
-	return cmd == CMD_ADD || cmd == CMD_REMOVE
+	return cmd == CmdAdd || cmd == CmdRemove
 }
 
 func (c Channel) EffectiveCmd() uint8 {
-	if c.CmdType != _CMD_UNKNOWN {
+	if c.CmdType != CmdUnknown {
 		return c.CmdType
 	}
-	return CMD_ADD
+	return CmdAdd
 }
 
 // Action invokes application level commands of the broker.
 type Action struct {
-	AckPolicy ACK_PLCY
-	// Optional: override, defaults to CMD_SIGTERM if zero.
+	AckPolicy AckPlcy
+	// Optional: override, defaults to CmdSigterm if zero.
 	CmdType uint8
 }
 
 func (a Action) CmdValid() bool {
 	c := a.EffectiveCmd()
-	return c == CMD_SIGTERM
+	return c == CmdSigterm
 }
 func (a Action) EffectiveCmd() uint8 {
-	if a.CmdType != _CMD_UNKNOWN {
+	if a.CmdType != CmdUnknown {
 		return a.CmdType
 	}
-	return CMD_SIGTERM
-}
-
-// -------Encoding helpers (big-endian)-----------------------------------------
-
-func putU8(buf *bytes.Buffer, n uint8) {
-	_ = buf.WriteByte(n)
-}
-
-func putU16(buf *bytes.Buffer, n uint16) {
-	var tmp [2]byte
-	binary.BigEndian.PutUint16(tmp[:], n)
-	buf.Write(tmp[:])
-}
-
-func putU32(buf *bytes.Buffer, n uint32) {
-	var tmp [4]byte
-	binary.BigEndian.PutUint32(tmp[:], n)
-	buf.Write(tmp[:])
-}
-
-func pstr8(buf *bytes.Buffer, s string) error {
-	b := []byte(s)
-	if len(b) > 255 {
-		return fmt.Errorf("string too long for u8 prefix: %d", len(b))
-	}
-	putU8(buf, uint8(len(b)))
-	buf.Write(b)
-	return nil
-}
-
-func pbytes16(buf *bytes.Buffer, b []byte) error {
-	if len(b) > int(maxU16Len) {
-		return fmt.Errorf("bytes too long for u16 prefix: %d", len(b))
-	}
-	putU16(buf, uint16(len(b)))
-	buf.Write(b)
-	return nil
+	return CmdSigterm
 }
 
 // -------Frame builder---------------------------------------------------------
 
 type frame struct {
-	objType      uint8
-	cmdType      uint8
-	ackPlcy      uint8
-	arg1, arg2   string
-	arg3, arg4   string
-	payloadBytes []byte
+	objType    uint8
+	cmdType    uint8
+	ackPlcy    uint8
+	arg1, arg2 string
+	arg3, arg4 string
+
+	payloadEncoding PayloadEncoding
+	payloadBytes    []byte
 }
 
-func encodeMessage(msg Message) (*frame, error) {
-	f := &frame{}
-	f.objType = OBJ_MESSAGE
-	f.cmdType = msg.EffectiveCmd()
-	if !msg.CmdValid() {
-		return nil, errors.New("message: invalid cmd_type")
-	}
-	f.ackPlcy = uint8(msg.AckPolicy)
+func encodeMessage(msg Message) (*rhizome.Object, error) {
+	obj := rhizome.NewObject(
+		ObjMessage, msg.EffectiveCmd(), msg.AckPolicy.Uint8(),
+		uuid.NewString(),
+		msg.Route, "", "", "", // args
+		rhizome.PayloadEncoding(msg.Encoding),
+		msg.Payload,
+	)
 
-	f.arg1 = msg.Route
-	f.arg2 = ""
-	f.arg3 = ""
-	f.arg4 = ""
-
-	f.payloadBytes = append([]byte(nil), msg.Payload...)
-
-	return f, nil
+	return obj, nil
 }
 
-func encodeTransformer(tfr Transformer) (*frame, error) {
-	f := &frame{}
-	f.objType = OBJ_TRANSFORMER
-	f.cmdType = tfr.EffectiveCmd()
-	if !tfr.CmdValid() {
-		return nil, errors.New("transformer: invalid cmd_type")
-	}
-	f.ackPlcy = uint8(tfr.AckPolicy)
+func encodeTransformer(tfr Transformer) (*rhizome.Object, error) {
+	obj := rhizome.NewObject(
+		ObjTransformer, tfr.EffectiveCmd(), tfr.AckPolicy.Uint8(),
+		uuid.NewString(),
+		tfr.Route, tfr.Channel, tfr.Address, "", // args
+		rhizome.EncodingNA,
+		[]byte{},
+	)
 
-	f.arg1, f.arg2, f.arg3, f.arg4 = tfr.Route, tfr.Channel, tfr.Address, ""
-
-	return f, nil
+	return obj, nil
 }
 
-func encodeSubscriber(sub Subscriber) (*frame, error) {
-	f := &frame{}
-	f.objType = OBJ_SUBSCRIBER
-	f.cmdType = sub.EffectiveCmd()
-	if !sub.CmdValid() {
-		return nil, errors.New("subscriber: invalid cmd_type")
-	}
-	f.ackPlcy = uint8(sub.AckPolicy)
+func encodeSubscriber(sub Subscriber) (*rhizome.Object, error) {
+	obj := rhizome.NewObject(
+		ObjSubscriber, sub.EffectiveCmd(), sub.AckPolicy.Uint8(),
+		uuid.NewString(),
+		sub.Route, sub.Channel, sub.Address, "", // args
+		rhizome.EncodingNA,
+		[]byte{},
+	)
 
-	f.arg1, f.arg2, f.arg3, f.arg4 = sub.Route, sub.Channel, sub.Address, ""
-
-	return f, nil
+	return obj, nil
 }
 
-func encodeGlobals(glb Globals) (*frame, error) {
-	f := &frame{}
-	f.objType = OBJ_GLOBALS
-	f.cmdType = glb.EffectiveCmd()
-	if !glb.CmdValid() {
-		return nil, errors.New("globals: invalid cmd_type")
-	}
-	f.ackPlcy = uint8(glb.AckPolicy)
-
-	f.arg1, f.arg2, f.arg3, f.arg4 = "", "", "", ""
-
+func encodeGlobals(glb Globals) (*rhizome.Object, error) {
 	data := make(map[string]any)
 	if glb.Values.Address != "" {
 		data["address"] = glb.Values.Address
@@ -316,76 +258,78 @@ func encodeGlobals(glb Globals) (*frame, error) {
 	if len(data) == 0 {
 		return nil, errors.New("globals: no valid fields to encode")
 	}
-	j, err := json.Marshal(data)
+	payload, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("globals: marshal: %w", err)
 	}
-	f.payloadBytes = j
 
-	return f, nil
+	obj := rhizome.NewObject(
+		ObjGlobals, glb.EffectiveCmd(), glb.AckPolicy.Uint8(),
+		uuid.NewString(),
+		"", "", "", "", // args
+		rhizome.EncodingJson,
+		payload,
+	)
+
+	return obj, nil
 }
 
-func encodeChannel(ch Channel) (*frame, error) {
-	f := &frame{}
-	f.objType = OBJ_CHANNEL
-	f.cmdType = ch.EffectiveCmd()
-	if !ch.CmdValid() {
-		return nil, errors.New("channel: invalid cmd_type")
-	}
-	f.ackPlcy = uint8(ch.AckPolicy)
+func encodeChannel(ch Channel) (*rhizome.Object, error) {
+	obj := rhizome.NewObject(
+		ObjChannel, ch.EffectiveCmd(), ch.AckPolicy.Uint8(),
+		uuid.NewString(),
+		ch.Route, ch.Name, ch.SelectionStrategy.String(), "", // args
+		rhizome.EncodingNA,
+		[]byte{},
+	)
 
-	f.arg1, f.arg2 = ch.Route, ch.Name
-	f.arg3, f.arg4 = ch.SelectionStrategy.String(), ""
-
-	return f, nil
+	return obj, nil
 }
 
-func encodeAction(act Action) (*frame, error) {
-	f := &frame{}
-	f.objType = OBJ_ACTION
-	f.cmdType = act.EffectiveCmd()
-	if !act.CmdValid() {
-		return nil, errors.New("action: invalid cmd_type")
-	}
-	f.ackPlcy = uint8(act.AckPolicy)
+func encodeAction(act Action) (*rhizome.Object, error) {
+	obj := rhizome.NewObject(
+		ObjAction, act.EffectiveCmd(), act.AckPolicy.Uint8(),
+		uuid.NewString(),
+		"", "", "", "", // args
+		rhizome.EncodingNA,
+		[]byte{},
+	)
 
-	f.arg1, f.arg2, f.arg3, f.arg4 = "", "", "", ""
-
-	return f, nil
+	return obj, nil
 }
 
 func encode(cmd Command) ([]byte, error) {
-	var f *frame
+	var obj *rhizome.Object
 	var err error
 
 	switch v := cmd.(type) {
 	case Message:
-		f, err = encodeMessage(v)
+		obj, err = encodeMessage(v)
 		if err != nil {
 			return nil, err
 		}
 	case Transformer:
-		f, err = encodeTransformer(v)
+		obj, err = encodeTransformer(v)
 		if err != nil {
 			return nil, err
 		}
 	case Subscriber:
-		f, err = encodeSubscriber(v)
+		obj, err = encodeSubscriber(v)
 		if err != nil {
 			return nil, err
 		}
 	case Globals:
-		f, err = encodeGlobals(v)
+		obj, err = encodeGlobals(v)
 		if err != nil {
 			return nil, err
 		}
 	case Channel:
-		f, err = encodeChannel(v)
+		obj, err = encodeChannel(v)
 		if err != nil {
 			return nil, err
 		}
 	case Action:
-		f, err = encodeAction(v)
+		obj, err = encodeAction(v)
 		if err != nil {
 			return nil, err
 		}
@@ -393,54 +337,12 @@ func encode(cmd Command) ([]byte, error) {
 		return nil, fmt.Errorf("unsupported object type %T", cmd)
 	}
 
-	b, err := encodeFrame(f)
+	b, err := rhizome.EncodeFrame(obj)
 	if err != nil {
 		return nil, err
 	}
 
 	return b, nil
-}
-
-func encodeFrame(f *frame) ([]byte, error) {
-	body := bytes.NewBuffer(nil)
-
-	// -----Fixed header-----
-	putU8(body, API_PROTOCOL_VER)
-	putU8(body, f.objType)
-	putU8(body, f.cmdType)
-
-	// -----Tracking sub-header-----
-	_ = pstr8(body, uuid.NewString())
-
-	// -----Arguments-----
-	needsArgs := []uint8{OBJ_MESSAGE, OBJ_SUBSCRIBER, OBJ_TRANSFORMER}
-	if slices.Contains(needsArgs, f.objType) && f.arg1 == "" {
-		return nil, errors.New("message has incomplete args")
-	}
-
-	if err := pstr8(body, f.arg1); err != nil {
-		return nil, err
-	}
-	if err := pstr8(body, f.arg2); err != nil {
-		return nil, err
-	}
-	if err := pstr8(body, f.arg3); err != nil {
-		return nil, err
-	}
-	if err := pstr8(body, f.arg4); err != nil {
-		return nil, err
-	}
-
-	// -----Payload-----
-	if err := pbytes16(body, f.payloadBytes); err != nil {
-		return nil, err
-	}
-
-	// Prefix with total length (u32 big-endian).
-	full := bytes.NewBuffer(nil)
-	putU32(full, uint32(body.Len()))
-	full.Write(body.Bytes())
-	return full.Bytes(), nil
 }
 
 // Send connects to address:port and transmits the encoded frame.

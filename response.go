@@ -10,66 +10,72 @@ import (
 
 // -------Ack values------------------------------------------------------------
 
-// How the sender would like to be informed about their message by the broker.
+// AckPlcy is how the sender would like to be informed about their message by
+// the broker.
 // No reply, was it forwarded, etc.
-type ACK_PLCY uint8
+type AckPlcy uint8
 
 const (
-	// Sender does not wish to receive ack.
-	ACK_PLCY_NOREPLY ACK_PLCY = 0
+	// AckPlcyNoreply prevents sender from receiving an ack.
+	AckPlcyNoreply AckPlcy = 0
 
-	// Sender wants to get ack when broker delivers to final subscriber.
+	// AckPlcyOnsent responds to send with ack when broker delivers to consumer.
 	// This often means sending the ack back after the final channel has
 	// processed the message object.
-	ACK_PLCY_ONSENT ACK_PLCY = 1
+	AckPlcyOnsent AckPlcy = 1
 )
 
-var ackPolicyName = map[ACK_PLCY]string{
-	ACK_PLCY_NOREPLY: "NoReply",
-	ACK_PLCY_ONSENT:  "OnSent",
+var ackPolicyName = map[AckPlcy]string{
+	AckPlcyNoreply: "NoReply",
+	AckPlcyOnsent:  "OnSent",
 }
 
-func (ap ACK_PLCY) String() string {
+func (ap AckPlcy) String() string {
 	return ackPolicyName[ap]
 }
 
-// The response code from the broker.
-// Sent, timed out, etc.
-type ACK_TYPE uint8
-
-const (
-	ACK_TYPE_UNKNOWN ACK_TYPE = 0 // Undetermined
-
-	// Broker was able to and finished sending message to subscribers.
-	ACK_TYPE_SENT ACK_TYPE = 1
-
-	// If no ack was gotten before the timeout time, a response with ACK_TIMEOUT
-	// is generated and returned instead.
-	ACK_TYPE_TIMEOUT ACK_TYPE = 10
-
-	ACK_CHANNEL_NOT_FOUND      ACK_TYPE = 20
-	ACK_CHANNEL_ALREADY_EXISTS ACK_TYPE = 21
-	ACK_ROUTE_NOT_FOUND        ACK_TYPE = 30
-)
-
-var ackTypeName = map[ACK_TYPE]string{
-	ACK_TYPE_UNKNOWN:           "Unknown",
-	ACK_TYPE_SENT:              "Sent",
-	ACK_TYPE_TIMEOUT:           "Timeout",
-	ACK_CHANNEL_NOT_FOUND:      "Channel not found",
-	ACK_CHANNEL_ALREADY_EXISTS: "Channel already exists",
-	ACK_ROUTE_NOT_FOUND:        "Route not found",
+func (ap AckPlcy) Uint8() uint8 {
+	return uint8(ap)
 }
 
-func (at ACK_TYPE) String() string {
+// AckType is the response code from the broker.
+// Sent, timed out, etc.
+type AckType uint8
+
+const (
+	AckTypeUnknown AckType = 0 // Undetermined
+
+	// AckTypeSent denotes broker was able to and finished sending message to
+	// subscribers.
+	AckTypeSent AckType = 1
+
+	// AckTypeTimeout denotes no ack was received before the timeout time, and
+	// therefore a response with AckTimeout is generated and returned instead.
+	AckTypeTimeout AckType = 10
+
+	AckChannelNotFound      AckType = 20
+	AckChannelAlreadyExists AckType = 21
+	AckRouteNotFound        AckType = 30
+)
+
+var ackTypeName = map[AckType]string{
+	AckTypeUnknown:          "Unknown",
+	AckTypeSent:             "Sent",
+	AckTypeTimeout:          "Timeout",
+	AckChannelNotFound:      "Channel not found",
+	AckChannelAlreadyExists: "Channel already exists",
+	AckRouteNotFound:        "Route not found",
+}
+
+func (at AckType) String() string {
 	return ackTypeName[at]
 }
 
-// The response from the broker with a given ack code and the corresponding
+// Response from the broker with a given ack code and the corresponding
 // message's UID.
 type Response struct {
 	UID string
-	Ack ACK_TYPE
+	Ack AckType
 }
 
 // -------Decoding--------------------------------------------------------------
@@ -85,9 +91,9 @@ var (
 // Layout:
 //
 //	[0..1]   uint16 bodyLen (big-endian)
-//	[2]      uint8  uidLen
+//	[2]      Uint8  uidLen
 //	[...]    uid bytes (len = uidLen)
-//	[last]   uint8  ack
+//	[last]   Uint8  ack
 func recvAndDecode(conn net.Conn) (*Response, error) {
 	var hdr [2]byte
 	if _, err := io.ReadFull(conn, hdr[:]); err != nil {
@@ -126,6 +132,6 @@ func recvAndDecode(conn net.Conn) (*Response, error) {
 
 	return &Response{
 		UID: uid,
-		Ack: ACK_TYPE(ack),
+		Ack: AckType(ack),
 	}, nil
 }
