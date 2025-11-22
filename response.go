@@ -34,6 +34,10 @@ func (ap AckPlcy) String() string {
 	return ackPolicyName[ap]
 }
 
+func (ap AckPlcy) Uint8() uint8 {
+	return uint8(ap)
+}
+
 // AckType is the response code from the broker.
 // Sent, timed out, etc.
 type AckType uint8
@@ -87,9 +91,9 @@ var (
 // Layout:
 //
 //	[0..1]   uint16 bodyLen (big-endian)
-//	[2]      uint8  uidLen
+//	[2]      Uint8  uidLen
 //	[...]    uid bytes (len = uidLen)
-//	[last]   uint8  ack
+//	[last]   Uint8  ack
 func recvAndDecode(conn net.Conn) (*Response, error) {
 	var hdr [2]byte
 	if _, err := io.ReadFull(conn, hdr[:]); err != nil {
