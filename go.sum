@@ -1,2 +1,4 @@
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/signal-weave/rhizome v0.0.0-20251110005128-968dee37d4a0 h1:eM1AWc2Iv7CiGeVidosbtPLvJEa9xJOt1xpbozsC7qY=
+github.com/signal-weave/rhizome v0.0.0-20251110005128-968dee37d4a0/go.mod h1:lQgk25uu5fX3AkpeSmxX+/XZ17pBCcApwpISkAmXrcg=

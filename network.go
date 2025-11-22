@@ -10,7 +10,7 @@ import (
 // Processor returns an optional response. If nil, no response is sent.
 type Processor func(payload []byte) []byte
 
-type MyceliaListener struct {
+type Listener struct {
 	localAddr string
 	localPort int
 	process   Processor
@@ -22,8 +22,8 @@ type MyceliaListener struct {
 func NewMyceliaListener(
 	processor Processor,
 	localAddr string,
-	localPort int) *MyceliaListener {
-	return &MyceliaListener{
+	localPort int) *Listener {
+	return &Listener{
 		localAddr: localAddr,
 		localPort: localPort,
 		process:   processor,
@@ -32,7 +32,7 @@ func NewMyceliaListener(
 }
 
 // Start blocks, accepting and handling connections until Stop is called.
-func (ml *MyceliaListener) Start() error {
+func (ml *Listener) Start() error {
 	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", ml.localAddr, ml.localPort))
 	if err != nil {
 		return err
@@ -67,7 +67,7 @@ func (ml *MyceliaListener) Start() error {
 	}
 }
 
-func (ml *MyceliaListener) handleConn(conn net.Conn) {
+func (ml *Listener) handleConn(conn net.Conn) {
 	defer conn.Close()
 	buf := make([]byte, 1024)
 	for {
@@ -85,7 +85,7 @@ func (ml *MyceliaListener) handleConn(conn net.Conn) {
 }
 
 // Stop unblocks Start by closing the listener.
-func (ml *MyceliaListener) Stop() {
+func (ml *Listener) Stop() {
 	select {
 	case <-ml.stop:
 		// already stopped

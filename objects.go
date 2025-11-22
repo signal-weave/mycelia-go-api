@@ -14,36 +14,35 @@ import (
 )
 
 const (
-	OBJ_MESSAGE     uint8 = 1
-	OBJ_TRANSFORMER uint8 = 2
-	OBJ_SUBSCRIBER  uint8 = 3
-	OBJ_CHANNEL     uint8 = 4
+	ObjMessage     uint8 = 1
+	ObjTransformer uint8 = 2
+	ObjSubscriber  uint8 = 3
+	ObjChannel     uint8 = 4
 
-	OBJ_GLOBALS uint8 = 20
+	ObjGlobals uint8 = 20
 
-	OBJ_ACTION uint8 = 50
+	ObjAction uint8 = 50
 )
 
 const (
-	_CMD_UNKNOWN uint8 = 0
+	CmdUnknown uint8 = 0
 
-	CMD_SEND   uint8 = 1
-	CMD_ADD    uint8 = 2
-	CMD_REMOVE uint8 = 3
+	CmdSend   uint8 = 1
+	CmdAdd    uint8 = 2
+	CmdRemove uint8 = 3
 
-	CMD_UPDATE uint8 = 20
+	CmdUpdate uint8 = 20
 
-	CMD_SIGTERM uint8 = 50
+	CmdSigterm uint8 = 50
 )
 
 const (
-	API_PROTOCOL_VER uint8  = 1
-	encodingName            = "utf-8"
-	maxU16Len        uint32 = 65535
+	ApiProtocolVer uint8  = 1
+	maxU16Len      uint32 = 65535
 )
 
-// DEAD_LETTER is used for subscribing to dead letter channels.
-const DEAD_LETTER = "deadLetter"
+// DeadLetter is used for subscribing to dead letter channels.
+const DeadLetter = "deadLetter"
 
 // -------Public message types--------------------------------------------------
 
@@ -54,65 +53,65 @@ type Command interface {
 
 // Message sends a payload over a route.
 type Message struct {
-	AckPolicy ACK_PLCY
+	AckPolicy AckPlcy
 	Route     string
 	Payload   []byte
-	// Optional: override, defaults to CMD_SEND if zero.
+	// Optional: override, defaults to CmdSend if zero.
 	CmdType uint8
 }
 
 func (m Message) CmdValid() bool {
 	c := m.EffectiveCmd()
-	return c == CMD_SEND
+	return c == CmdSend
 }
 
 func (m Message) EffectiveCmd() uint8 {
-	if m.CmdType != _CMD_UNKNOWN {
+	if m.CmdType != CmdUnknown {
 		return m.CmdType
 	}
-	return CMD_SEND
+	return CmdSend
 }
 
 // Transformer registers/unregisters a transformer at a channel.
 type Transformer struct {
-	AckPolicy ACK_PLCY
+	AckPolicy AckPlcy
 	Route     string
 	Channel   string
 	Address   string
-	// Optional: override, defaults to CMD_ADD if zero.
+	// Optional: override, defaults to CmdAdd if zero.
 	CmdType uint8
 }
 
 func (t Transformer) CmdValid() bool {
 	c := t.EffectiveCmd()
-	return c == CMD_ADD || c == CMD_REMOVE
+	return c == CmdAdd || c == CmdRemove
 }
 func (t Transformer) EffectiveCmd() uint8 {
-	if t.CmdType != _CMD_UNKNOWN {
+	if t.CmdType != CmdUnknown {
 		return t.CmdType
 	}
-	return CMD_ADD
+	return CmdAdd
 }
 
 // Subscriber registers/unregisters a subscriber at a channel.
 type Subscriber struct {
-	AckPolicy ACK_PLCY
+	AckPolicy AckPlcy
 	Route     string
 	Channel   string
 	Address   string
-	// Optional: override, defaults to CMD_ADD if zero.
+	// Optional: override, defaults to CmdAdd if zero.
 	CmdType uint8
 }
 
 func (s Subscriber) CmdValid() bool {
 	c := s.EffectiveCmd()
-	return c == CMD_ADD || c == CMD_REMOVE
+	return c == CmdAdd || c == CmdRemove
 }
 func (s Subscriber) EffectiveCmd() uint8 {
-	if s.CmdType != _CMD_UNKNOWN {
+	if s.CmdType != CmdUnknown {
 		return s.CmdType
 	}
-	return CMD_ADD
+	return CmdAdd
 }
 
 type GlobalValues struct {
@@ -127,62 +126,62 @@ type GlobalValues struct {
 
 // Globals updates broker globals.
 type Globals struct {
-	AckPolicy ACK_PLCY
+	AckPolicy AckPlcy
 	Values    GlobalValues
-	// Optional: override, defaults to CMD_UPDATE if zero.
+	// Optional: override, defaults to CmdUpdate if zero.
 	CmdType uint8
 }
 
 func (g Globals) CmdValid() bool {
 	c := g.EffectiveCmd()
-	return c == CMD_UPDATE
+	return c == CmdUpdate
 }
 
 func (g Globals) EffectiveCmd() uint8 {
-	if g.CmdType != _CMD_UNKNOWN {
+	if g.CmdType != CmdUnknown {
 		return g.CmdType
 	}
-	return CMD_UPDATE
+	return CmdUpdate
 }
 
 type Channel struct {
-	AckPolicy ACK_PLCY
+	AckPolicy AckPlcy
 	Route     string
 	Name      string
-	// Optional: override, defaults to SEL_STRAT_PUBSUB if zero.
-	SelectionStrategy SEL_STRAT
-	// Optional: override, defaults to CMD_ADD if zero.
+	// Optional: override, defaults to SelectionStratPubsub if zero.
+	SelectionStrategy SelectionStrat
+	// Optional: override, defaults to CmdAdd if zero.
 	CmdType uint8
 }
 
 func (c Channel) CmdValid() bool {
 	cmd := c.EffectiveCmd()
-	return cmd == CMD_ADD || cmd == CMD_REMOVE
+	return cmd == CmdAdd || cmd == CmdRemove
 }
 
 func (c Channel) EffectiveCmd() uint8 {
-	if c.CmdType != _CMD_UNKNOWN {
+	if c.CmdType != CmdUnknown {
 		return c.CmdType
 	}
-	return CMD_ADD
+	return CmdAdd
 }
 
 // Action invokes application level commands of the broker.
 type Action struct {
-	AckPolicy ACK_PLCY
-	// Optional: override, defaults to CMD_SIGTERM if zero.
+	AckPolicy AckPlcy
+	// Optional: override, defaults to CmdSigterm if zero.
 	CmdType uint8
 }
 
 func (a Action) CmdValid() bool {
 	c := a.EffectiveCmd()
-	return c == CMD_SIGTERM
+	return c == CmdSigterm
 }
 func (a Action) EffectiveCmd() uint8 {
-	if a.CmdType != _CMD_UNKNOWN {
+	if a.CmdType != CmdUnknown {
 		return a.CmdType
 	}
-	return CMD_SIGTERM
+	return CmdSigterm
 }
 
 // -------Encoding helpers (big-endian)-----------------------------------------
@@ -225,17 +224,18 @@ func pbytes16(buf *bytes.Buffer, b []byte) error {
 // -------Frame builder---------------------------------------------------------
 
 type frame struct {
-	objType      uint8
-	cmdType      uint8
-	ackPlcy      uint8
-	arg1, arg2   string
-	arg3, arg4   string
+	objType    uint8
+	cmdType    uint8
+	ackPlcy    uint8
+	arg1, arg2 string
+	arg3, arg4 string
+
 	payloadBytes []byte
 }
 
 func encodeMessage(msg Message) (*frame, error) {
 	f := &frame{}
-	f.objType = OBJ_MESSAGE
+	f.objType = ObjMessage
 	f.cmdType = msg.EffectiveCmd()
 	if !msg.CmdValid() {
 		return nil, errors.New("message: invalid cmd_type")
@@ -254,7 +254,7 @@ func encodeMessage(msg Message) (*frame, error) {
 
 func encodeTransformer(tfr Transformer) (*frame, error) {
 	f := &frame{}
-	f.objType = OBJ_TRANSFORMER
+	f.objType = ObjTransformer
 	f.cmdType = tfr.EffectiveCmd()
 	if !tfr.CmdValid() {
 		return nil, errors.New("transformer: invalid cmd_type")
@@ -268,7 +268,7 @@ func encodeTransformer(tfr Transformer) (*frame, error) {
 
 func encodeSubscriber(sub Subscriber) (*frame, error) {
 	f := &frame{}
-	f.objType = OBJ_SUBSCRIBER
+	f.objType = ObjSubscriber
 	f.cmdType = sub.EffectiveCmd()
 	if !sub.CmdValid() {
 		return nil, errors.New("subscriber: invalid cmd_type")
@@ -282,7 +282,7 @@ func encodeSubscriber(sub Subscriber) (*frame, error) {
 
 func encodeGlobals(glb Globals) (*frame, error) {
 	f := &frame{}
-	f.objType = OBJ_GLOBALS
+	f.objType = ObjGlobals
 	f.cmdType = glb.EffectiveCmd()
 	if !glb.CmdValid() {
 		return nil, errors.New("globals: invalid cmd_type")
@@ -327,7 +327,7 @@ func encodeGlobals(glb Globals) (*frame, error) {
 
 func encodeChannel(ch Channel) (*frame, error) {
 	f := &frame{}
-	f.objType = OBJ_CHANNEL
+	f.objType = ObjChannel
 	f.cmdType = ch.EffectiveCmd()
 	if !ch.CmdValid() {
 		return nil, errors.New("channel: invalid cmd_type")
@@ -342,7 +342,7 @@ func encodeChannel(ch Channel) (*frame, error) {
 
 func encodeAction(act Action) (*frame, error) {
 	f := &frame{}
-	f.objType = OBJ_ACTION
+	f.objType = ObjAction
 	f.cmdType = act.EffectiveCmd()
 	if !act.CmdValid() {
 		return nil, errors.New("action: invalid cmd_type")
@@ -405,7 +405,7 @@ func encodeFrame(f *frame) ([]byte, error) {
 	body := bytes.NewBuffer(nil)
 
 	// -----Fixed header-----
-	putU8(body, API_PROTOCOL_VER)
+	putU8(body, ApiProtocolVer)
 	putU8(body, f.objType)
 	putU8(body, f.cmdType)
 
@@ -413,7 +413,7 @@ func encodeFrame(f *frame) ([]byte, error) {
 	_ = pstr8(body, uuid.NewString())
 
 	// -----Arguments-----
-	needsArgs := []uint8{OBJ_MESSAGE, OBJ_SUBSCRIBER, OBJ_TRANSFORMER}
+	needsArgs := []uint8{ObjMessage, ObjSubscriber, ObjTransformer}
 	if slices.Contains(needsArgs, f.objType) && f.arg1 == "" {
 		return nil, errors.New("message has incomplete args")
 	}
